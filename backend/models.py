@@ -38,6 +38,7 @@ class Content(Base):
     difficulty_level = Column(String(32), nullable=True, comment="难度等级")
     content_category = Column(String(64), nullable=True, comment="内容分类")
     source_url = Column(String(1024), nullable=True, comment="原始链接")
+    source = Column(String(16), default="mock", index=True, comment="数据来源: mock/real")
     is_trending = Column(Boolean, default=False, comment="是否热门")
     ai_confidence = Column(Float, default=0.0, comment="AI分类置信度")
 
@@ -76,6 +77,7 @@ class Content(Base):
             "difficulty_level": self.difficulty_level,
             "content_category": self.content_category,
             "source_url": self.source_url,
+            "source": self.source or "mock",
             "is_trending": self.is_trending,
             "ai_confidence": self.ai_confidence,
             "publish_time": self.publish_time,

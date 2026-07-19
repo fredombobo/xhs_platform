@@ -646,6 +646,7 @@ class XiaohongshuCrawler:
                 "difficulty_level": difficulty,
                 "content_category": category,
                 "source_url": f"https://www.xiaohongshu.com/explore/{note_id[:16]}",
+                "source": "mock",
                 "is_trending": is_trending,
                 "ai_confidence": item_rng.uniform(0.85, 0.99),
                 "publish_time": publish_dt.isoformat(),

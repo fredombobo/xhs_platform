@@ -936,6 +936,26 @@ body {
     filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
 }
 
+.source-badge {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    backdrop-filter: blur(6px);
+    letter-spacing: 0.5px;
+}
+.source-badge.source-real {
+    background: rgba(34, 197, 94, 0.85);
+    color: #fff;
+}
+.source-badge.source-mock {
+    background: rgba(148, 163, 184, 0.8);
+    color: #fff;
+}
+
 .card-body {
     padding: 12px 14px;
 }

@@ -186,10 +186,11 @@ class RealXiaohongshuCrawler:
                     pass
 
             # 滚动加载更多
-            last_count = len(results)
+            seen_ids = set(r["note_id"] for r in results)
+            last_total = len(results)
             no_change_rounds = 0
 
-            for _ in range(min(count // 10 + 5, 10)):
+            for _ in range(min(count // 10 + 5, 15)):
                 if len(results) >= count:
                     break
 
@@ -197,16 +198,20 @@ class RealXiaohongshuCrawler:
                 time.sleep(random.uniform(2.0, 3.5))
 
                 new_results = self._extract_notes_from_page(page, keyword)
-                results = new_results  # 用最新的替换（小红书搜索页是动态加载）
+                # 合并新结果（去重）
+                for item in new_results:
+                    if item["note_id"] not in seen_ids:
+                        seen_ids.add(item["note_id"])
+                        results.append(item)
 
-                if len(results) == last_count:
+                if len(results) == last_total:
                     no_change_rounds += 1
                     if no_change_rounds >= 3:
                         break
                 else:
                     no_change_rounds = 0
                     print(f"  已获取 {len(results)} 条...")
-                    last_count = len(results)
+                    last_total = len(results)
 
             print(f"  完成，共 {len(results)} 条")
 
@@ -303,61 +308,142 @@ class RealXiaohongshuCrawler:
         except Exception:
             return False
 
+    @staticmethod
+    def _parse_count(text: str) -> int:
+        """解析 XHS 互动计数（支持 '1.2万', '999', '10万+' 等格式）"""
+        if not text:
+            return 0
+        text = text.strip().replace("+", "").replace(",", "")
+        if "万" in text:
+            try:
+                return int(float(text.replace("万", "")) * 10000)
+            except ValueError:
+                return 0
+        try:
+            return int(re.sub(r"[^0-9]", "", text) or 0)
+        except ValueError:
+            return 0
+
     def _extract_notes_from_page(self, page, keyword: str) -> List[Dict]:
-        """从当前页面提取笔记数据"""
+        """
+        从当前页面提取笔记数据。
+
+        核心思路：找所有 a[href*="/explore/"] 链接（XHS 固定 URL 结构），
+        而非依赖 React 动态 class name。这是唯一不会随 XHS 前端更新而失效的方法。
+        """
         notes = []
 
-        try:
-            # 等待笔记卡片出现
-            page.wait_for_selector(
-                "section.note-item, .feeds-page .note-item, [class*='note']",
-                timeout=5000
-            )
-        except Exception:
-            pass
+        # 等待页面渲染（给 JS 一点时间）
+        time.sleep(0.5)
 
-        # 通过 JavaScript 提取数据（更可靠）
         try:
             notes_data = page.evaluate("""
                 () => {
                     const results = [];
-                    // 尝试多种选择器匹配笔记卡片
-                    const cards = document.querySelectorAll(
-                        'section.note-item, .note-item, [class*="note-item"], ' +
-                        'a[href*="/explore/"], a[href*="/discovery/item/"]'
-                    );
-
                     const seen = new Set();
 
-                    cards.forEach(card => {
-                        try {
-                            // 提取链接和 ID
-                            const link = card.querySelector('a[href*="/explore/"]') || card.closest('a[href*="/explore/"]') || card;
-                            const href = link.href || link.getAttribute('href') || '';
-                            const noteId = href.match(/\\/explore\\/([a-f0-9]+)/)?.[1] || href.match(/\\/discovery\\/item\\/([a-f0-9]+)/)?.[1] || '';
+                    // === 策略：找所有指向 /explore/ 的链接 ===
+                    // XHS 笔记卡片一定包含一个指向 /explore/{24位hexID} 的 <a> 标签
+                    const allExploreLinks = document.querySelectorAll('a[href*="/explore/"]');
 
-                            if (!noteId || seen.has(noteId)) return;
+                    allExploreLinks.forEach(link => {
+                        try {
+                            const href = link.getAttribute('href') || '';
+                            // 提取 note_id: /explore/ 后跟 24 位 hex
+                            const match = href.match(/\\/explore\\/([a-f0-9]{20,32})/);
+                            if (!match) return;
+                            const noteId = match[1];
+                            if (seen.has(noteId)) return;
                             seen.add(noteId);
 
-                            // 提取标题
-                            const titleEl = card.querySelector('.title, [class*="title"], .note-title, a > span');
-                            const title = titleEl?.textContent?.trim() || '';
+                            // === 找到笔记卡片容器 ===
+                            // XHS 的卡片结构: 外层容器 > 链接(含封面图) > 底部信息区(标题/作者/点赞)
+                            // 向上查找较大的容器（至少包含 img + 文本）
+                            let card = link;
+                            for (let i = 0; i < 6; i++) {
+                                const parent = card.parentElement;
+                                if (!parent || parent === document.body) break;
+                                // 如果父容器包含多张图片/链接，说明到了外层列表，停在这里
+                                const childImgs = parent.querySelectorAll('img').length;
+                                const childLinks = parent.querySelectorAll('a[href*="/explore/"]').length;
+                                if (childLinks >= 2 || childImgs >= 3) break;
+                                card = parent;
+                            }
 
-                            // 提取作者
-                            const authorEl = card.querySelector('.author .name, [class*="author"] [class*="name"], .nickname, [class*="nickname"], .username');
-                            const authorName = authorEl?.textContent?.trim() || '';
+                            // === 提取封面图 ===
+                            const img = card.querySelector('img');
+                            let coverUrl = '';
+                            if (img) {
+                                coverUrl = img.src || img.getAttribute('data-src') || img.getAttribute('srcset')?.split(' ')[0] || '';
+                                // XHS 图片 URL 通常包含 ci.xiaohongshu.com 或 sximg 域名
+                            }
 
-                            // 提取封面图
-                            const imgEl = card.querySelector('img');
-                            const coverUrl = imgEl?.src || imgEl?.getAttribute('data-src') || '';
+                            // === 提取标题 ===
+                            // 卡片中文本最长的 span/div（排除数字计数）
+                            let title = '';
+                            let maxTextLen = 0;
+                            const textNodes = card.querySelectorAll('span, div, p, a');
+                            textNodes.forEach(el => {
+                                // 跳过 img 的 alt text 和纯数字
+                                if (el.children.length > 0) return;
+                                const text = el.textContent.trim();
+                                if (text.length > 5 && text.length < 200 && text.length > maxTextLen) {
+                                    // 排除纯数字/计数文本
+                                    if (/^[\\d,.万+]+$/.test(text)) return;
+                                    // 排除 "小红书" 品牌名等噪音
+                                    if (text === '小红书' || text === 'REDnote') return;
+                                    title = text;
+                                    maxTextLen = text.length;
+                                }
+                            });
 
-                            // 提取互动数据
-                            const likeEl = card.querySelector('[class*="like"] span, [class*="like"] .count, .like-count');
-                            const likes = parseInt(likeEl?.textContent?.replace(/[^0-9]/g, '') || '0') || 0;
+                            // === 提取作者名 ===
+                            // XHS 作者名通常是较短文本（2-12字），在卡片底部区域
+                            let authorName = '';
+                            const spans = card.querySelectorAll('span');
+                            spans.forEach(span => {
+                                const text = span.textContent.trim();
+                                if (text.length >= 2 && text.length <= 15 &&
+                                    !/^[\\d,.万+]+$/.test(text) &&
+                                    !text.includes('万') &&
+                                    span.children.length === 0) {
+                                    // 排除标题本身
+                                    if (text !== title && !authorName) {
+                                        authorName = text;
+                                    }
+                                }
+                            });
 
-                            // 提取描述
-                            const descEl = card.querySelector('.desc, [class*="desc"], .note-desc');
-                            const description = descEl?.textContent?.trim() || '';
+                            // === 提取点赞数 ===
+                            let likes = 0;
+                            // 在卡片中搜索所有包含 "万" 或纯数字的短文本
+                            const allSpans = card.querySelectorAll('span, div');
+                            allSpans.forEach(el => {
+                                if (el.children.length > 0) return;
+                                const text = el.textContent.trim();
+                                // 匹配点赞格式: "1.2万", "999", "10万+"
+                                if (/^[\\d,.]+万?\\+?$/.test(text) && text.length <= 8) {
+                                    // 找最大的数字（通常是点赞数，比其他计数大）
+                                    const val = parseFloat(text.replace(/[+万]/g, ''));
+                                    const actual = text.includes('万') ? val * 10000 : val;
+                                    if (actual > likes) {
+                                        likes = Math.round(actual);
+                                    }
+                                }
+                            });
+
+                            // === 提取描述 ===
+                            let description = '';
+                            // 描述通常在标题之后，是较长的文本
+                            const allTextEls = card.querySelectorAll('span, div, p');
+                            allTextEls.forEach(el => {
+                                if (el.children.length > 0) return;
+                                const text = el.textContent.trim();
+                                if (text.length > 20 && text.length < 500 &&
+                                    text !== title && !description) {
+                                    description = text;
+                                }
+                            });
 
                             results.push({
                                 note_id: noteId,
@@ -366,7 +452,7 @@ class RealXiaohongshuCrawler:
                                 cover_url: coverUrl,
                                 likes: likes,
                                 description: description,
-                                href: href,
+                                href: href.startsWith('http') ? href : 'https://www.xiaohongshu.com' + href,
                             });
                         } catch(e) {}
                     });
@@ -375,43 +461,52 @@ class RealXiaohongshuCrawler:
                 }
             """)
 
-            # 处理提取的数据
+            # === 处理提取的数据 ===
             now = datetime.now()
             for item in notes_data:
                 if not item.get("note_id"):
                     continue
 
-                # 将互动数据补全
-                likes = item.get("likes", 0) or random.randint(100, 50000)
-                collects = int(likes * random.uniform(0.2, 0.7))
-                comments = int(likes * random.uniform(0.03, 0.15))
-                shares = int(likes * random.uniform(0.02, 0.08))
+                note_id = item["note_id"]
+                title = item.get("title", "").strip()
+                author_name = item.get("author_name", "").strip()
+                cover_url = item.get("cover_url", "")
 
-                title = item.get("title", "")
+                # 使用提取到的点赞数（0 表示未能提取）
+                likes = item.get("likes", 0)
+                # 不编造互动数据 — 没提取到的就是 0
+                collects = 0
+                comments = 0
+                shares = 0
+
                 if not title:
-                    title = f"{keyword}相关内容"
+                    title = f"小红书搜索「{keyword}」笔记"
+
+                if not author_name:
+                    author_name = "小红书用户"
 
                 notes.append({
-                    "note_id": item["note_id"],
+                    "note_id": note_id,
                     "title": title,
-                    "description": item.get("description", f"小红书搜索「{keyword}」的笔记内容"),
-                    "author_name": item.get("author_name", "小红书用户"),
-                    "author_id": hashlib.md5(item.get("note_id", "").encode()).hexdigest()[:12],
-                    "cover_url": item.get("cover_url", ""),
+                    "description": item.get("description", ""),
+                    "author_name": author_name,
+                    "author_id": hashlib.md5(note_id.encode()).hexdigest()[:12],
+                    "cover_url": cover_url,
                     "video_url": "",
-                    "images": [],
+                    "images": [cover_url] if cover_url else [],
                     "likes": likes,
                     "collects": collects,
                     "comments": comments,
                     "shares": shares,
-                    "tags": [f"#{keyword}"],
+                    "tags": [],
                     "keyword": keyword,
                     "tool_name": None,
                     "project_type": None,
                     "difficulty_level": None,
                     "content_category": None,
-                    "source_url": f"https://www.xiaohongshu.com/explore/{item['note_id']}",
-                    "is_trending": likes > 10000,
+                    "source_url": f"https://www.xiaohongshu.com/explore/{note_id}",
+                    "source": "real",
+                    "is_trending": False,
                     "ai_confidence": 0.0,
                     "publish_time": now.isoformat(),
                 })

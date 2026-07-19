@@ -251,6 +251,9 @@ function renderContentCards(items) {
 
         const toolBadge = renderToolBadge(item.tool_name);
         const diffBadge = renderDifficultyBadge(item.difficulty_level);
+        const sourceBadge = item.source === "real"
+            ? '<span class="source-badge source-real">🌐 真实</span>'
+            : '<span class="source-badge source-mock">🤖 模拟</span>';
 
         return `
             <div class="content-card" data-id="${item.id}" onclick="openDetail(${item.id})">
@@ -258,6 +261,7 @@ function renderContentCards(items) {
                     ${coverHtml}
                     ${rank <= 10 ? `<div class="card-rank ${rankClass}">${rank}</div>` : ""}
                     ${item.is_trending ? `<div class="card-trending-flame">🔥</div>` : ""}
+                    ${sourceBadge}
                 </div>
                 <div class="card-body">
                     <div class="card-badges">
@@ -416,9 +420,10 @@ function openDetail(id) {
     const toolBadge = renderToolBadge(item.tool_name);
     const diffBadge = renderDifficultyBadge(item.difficulty_level);
     const catBadge = renderCategoryBadge(item.content_category);
-    const sourceLink = item.source_url
-        ? `<a href="${escapeHtml(item.source_url)}" target="_blank" rel="noopener" class="modal-source-link">🔗 查看小红书原文</a>`
-        : "";
+    const isReal = item.source === "real";
+    const sourceLink = isReal && item.source_url
+        ? `<a href="${escapeHtml(item.source_url)}" target="_blank" rel="noopener" class="modal-source-link">🔗 查看小红书原文 (真实数据)</a>`
+        : `<span class="modal-source-link disabled" style="opacity:0.5;cursor:not-allowed;">🤖 模拟数据 — 无真实原文链接</span>`;
 
     dom.modalBody.innerHTML = `
         <div class="modal-cover">${coverHtml}</div>
