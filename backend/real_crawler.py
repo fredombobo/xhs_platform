@@ -544,3 +544,25 @@ class RealXiaohongshuCrawler:
         finally:
             if page:
                 page.close()
+
+    def view_note(self, url: str) -> Dict:
+        """在 Playwright 浏览器中打开指定的小红书笔记（使用已登录的 session）"""
+        try:
+            self._ensure_browser()
+            page = self._context.new_page()
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(3)
+
+            # 检查是否需要登录
+            if self._check_need_login(page):
+                page.close()
+                return {"success": False, "message": "浏览器未登录小红书，请先点击「登录小红书」"}
+
+            print(f"  已打开笔记: {url}")
+            return {
+                "success": True,
+                "message": "笔记已在浏览器中打开",
+                "url": page.url,
+            }
+        except Exception as e:
+            return {"success": False, "message": str(e)}

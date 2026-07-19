@@ -743,6 +743,29 @@ def get_crawler_mode():
     })
 
 
+@app.route("/api/view-note", methods=["POST"])
+def view_note_in_browser():
+    """在 Playwright 浏览器中打开小红书笔记（复用登录态）"""
+    if not real_crawler.is_available:
+        return jsonify({"code": 500, "message": "Playwright 未安装"}), 500
+
+    data = request.get_json(silent=True) or {}
+    url = data.get("url", "").strip()
+
+    if not url:
+        return jsonify({"code": 400, "message": "缺少 url 参数"}), 400
+
+    try:
+        result = real_crawler.view_note(url)
+        return jsonify({
+            "code": 200 if result["success"] else 500,
+            "message": result["message"],
+            "data": result,
+        })
+    except Exception as e:
+        return jsonify({"code": 500, "message": str(e)}), 500
+
+
 # ==================== 启动 ====================
 
 if __name__ == "__main__":

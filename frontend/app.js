@@ -133,6 +133,11 @@ const api = {
     loginBrowser() {
         return this.request("/api/login-browser", { method: "POST" });
     },
+    viewNote(url) {
+        return this.request("/api/view-note", {
+            method: "POST", body: JSON.stringify({ url }),
+        });
+    },
 };
 
 // ==================== Toast ====================
@@ -422,8 +427,8 @@ function openDetail(id) {
     const catBadge = renderCategoryBadge(item.content_category);
     const isReal = item.source === "real";
     const sourceLink = isReal && item.source_url
-        ? `<a href="${escapeHtml(item.source_url)}" target="_blank" rel="noopener" class="modal-source-link">🔗 查看小红书原文 (真实数据)</a>`
-        : `<span class="modal-source-link disabled" style="opacity:0.5;cursor:not-allowed;">🤖 模拟数据 — 无真实原文链接</span>`;
+        ? `<button class="btn btn-real" style="width:100%;margin-top:8px;" onclick="event.stopPropagation();viewNoteInBrowser('${escapeHtml(item.source_url)}')">🌐 在浏览器中查看原文 (已登录)</button>`
+        : `<span style="display:block;text-align:center;color:#94a3b8;padding:8px;font-size:13px;">🤖 模拟数据 — 无真实原文链接</span>`;
 
     dom.modalBody.innerHTML = `
         <div class="modal-cover">${coverHtml}</div>
@@ -771,6 +776,20 @@ async function checkLogin() {
         }
     } catch (err) {
         showToast("检查失败: " + err.message, "error");
+    }
+}
+
+async function viewNoteInBrowser(url) {
+    showToast("正在浏览器中打开笔记...", "info");
+    try {
+        const result = await api.viewNote(url);
+        if (result.success) {
+            showToast("✅ 笔记已在浏览器窗口中打开", "success");
+        } else {
+            showToast(result.message || "打开失败", "error");
+        }
+    } catch (err) {
+        showToast("打开失败: " + err.message, "error");
     }
 }
 
