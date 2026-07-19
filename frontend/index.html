@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibeCoding 灵感发现 | 小红书热门AI编程项目</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <span class="logo-icon">⚡</span>
+                <span class="logo-text">VibeCoding 灵感发现</span>
+                <span class="logo-subtitle">小红书热门AI编程项目</span>
+            </div>
+            <div class="header-stats" id="headerStats">
+                <span class="stat-badge">📊 数据加载中...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主布局 -->
+    <div class="main-container">
+        <!-- 左侧边栏 -->
+        <aside class="sidebar">
+            <!-- 搜索爬取面板 -->
+            <div class="panel search-panel">
+                <h3 class="panel-title">🔍 搜索爬取 <span id="modeIndicator" class="mode-badge mode-mock">模拟数据</span></h3>
+                <div class="search-box">
+                    <input
+                        type="text"
+                        id="keywordInput"
+                        class="search-input"
+                        placeholder="搜索AI编程关键词..."
+                        value="vibecoding AI编程"
+                    />
+                    <div class="search-row">
+                        <select id="countSelect" class="count-select">
+                            <option value="20">20条</option>
+                            <option value="50" selected>50条</option>
+                            <option value="100">100条</option>
+                            <option value="200">200条</option>
+                        </select>
+                        <button id="crawlBtn" class="btn btn-primary">
+                            <span class="btn-icon">🚀</span> 模拟爬取
+                        </button>
+                    </div>
+                    <button id="realCrawlBtn" class="btn btn-real">
+                        <span class="btn-icon">🌐</span> 真实浏览器爬取
+                    </button>
+                    <div style="display:flex;gap:6px;margin-top:6px;">
+                        <button id="loginBrowserBtn" class="btn btn-sm btn-outline" style="flex:1;">
+                            🔐 登录小红书
+                        </button>
+                        <button id="checkLoginBtn" class="btn btn-sm btn-outline" style="flex:0;">
+                            ✅ 检查登录
+                        </button>
+                    </div>
+                </div>
+                <!-- Cookie 设置 -->
+                <div class="cookie-section">
+                    <details id="cookieDetails">
+                        <summary class="cookie-toggle">🍪 设置小红书 Cookie（真实API模式）</summary>
+                        <textarea
+                            id="cookieInput"
+                            class="cookie-input"
+                            placeholder="粘贴小红书 Cookie（从浏览器 DevTools > Network > Request Headers > Cookie 复制）"
+                            rows="3"
+                        ></textarea>
+                        <button id="saveCookieBtn" class="btn btn-sm btn-outline" style="margin-top:6px;">💾 保存 Cookie</button>
+                        <span id="cookieStatus" class="cookie-status"></span>
+                    </details>
+                </div>
+                <div class="preset-searches">
+                    <span class="preset-label">快捷搜索：</span>
+                    <div class="preset-buttons">
+                        <button class="preset-btn" data-keyword="Cursor AI编程">🖥️ Cursor项目</button>
+                        <button class="preset-btn" data-keyword="Bolt.new 开发">⚡ Bolt教程</button>
+                        <button class="preset-btn" data-keyword="v0 AI前端">▲ v0前端</button>
+                        <button class="preset-btn" data-keyword="AI编程入门">📖 AI编程入门</button>
+                        <button class="preset-btn" data-keyword="独立开发者 AI">🚀 独立开发</button>
+                        <button class="preset-btn" data-keyword="AI编程工具推荐">🔧 工具推荐</button>
+                    </div>
+                </div>
+                <div id="crawlStatus" class="crawl-status hidden"></div>
+            </div>
+
+            <!-- AI工具筛选 -->
+            <div class="panel filter-panel">
+                <h3 class="panel-title">🛠️ AI编程工具</h3>
+                <div class="tool-pills-container" id="toolPills">
+                    <button class="tool-pill active" data-tool="">全部</button>
+                    <!-- 动态生成 -->
+                </div>
+            </div>
+
+            <!-- 难度筛选 -->
+            <div class="panel filter-panel">
+                <h3 class="panel-title">📊 难度等级</h3>
+                <div class="diff-toggle-group" id="diffToggles">
+                    <button class="diff-btn active" data-diff="">全部</button>
+                    <button class="diff-btn diff-beginner" data-diff="beginner">🌱 入门级</button>
+                    <button class="diff-btn diff-intermediate" data-diff="intermediate">🔥 进阶级</button>
+                    <button class="diff-btn diff-advanced" data-diff="advanced">💎 高级</button>
+                </div>
+            </div>
+
+            <!-- 排序 & 关键词 -->
+            <div class="panel filter-panel">
+                <h3 class="panel-title">📋 筛选排序</h3>
+                <div class="filter-group">
+                    <label class="filter-label">排序方式</label>
+                    <div class="sort-buttons">
+                        <button class="sort-btn active" data-sort="likes">🔥 点赞</button>
+                        <button class="sort-btn" data-sort="collects">⭐ 收藏</button>
+                        <button class="sort-btn" data-sort="comments">💬 评论</button>
+                        <button class="sort-btn" data-sort="time">🕐 最新发布</button>
+                        <button class="sort-btn active" data-sort="crawled">📥 最新爬取</button>
+                    </div>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label">关键词筛选</label>
+                    <select id="keywordFilter" class="filter-select">
+                        <option value="">全部关键词</option>
+                    </select>
+                </div>
+                <button id="resetFiltersBtn" class="btn btn-sm btn-outline" style="width:100%;margin-top:8px;">
+                    🔄 重置所有筛选
+                </button>
+            </div>
+
+            <!-- 数据概览 -->
+            <div class="panel stats-panel">
+                <h3 class="panel-title">📈 数据概览</h3>
+                <div id="statsContent" class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-value" id="statTotal">-</span>
+                        <span class="stat-label">总内容数</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="statTrending">-</span>
+                        <span class="stat-label">🔥 热门</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="statAvgLikes">-</span>
+                        <span class="stat-label">平均点赞</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="statMaxLikes">-</span>
+                        <span class="stat-label">最高点赞</span>
+                    </div>
+                </div>
+                <div id="topKeywords" class="top-keywords"></div>
+            </div>
+        </aside>
+
+        <!-- 右侧主内容区 -->
+        <main class="content-area">
+            <!-- Trending Now 区域 -->
+            <section id="trendingSection" class="trending-section hidden">
+                <div class="trending-header">
+                    <h2 class="trending-title">🔥 Trending Now</h2>
+                    <span class="trending-subtitle">最热门的 VibeCoding 内容</span>
+                </div>
+                <div class="trending-scroll" id="trendingScroll">
+                    <!-- 动态生成 -->
+                </div>
+            </section>
+
+            <!-- 内容分类 Tab -->
+            <div class="category-tabs" id="categoryTabs">
+                <button class="category-tab active" data-category="">📋 全部</button>
+                <button class="category-tab" data-category="showcase">🎯 项目展示</button>
+                <button class="category-tab" data-category="tutorial">📖 教程教学</button>
+                <button class="category-tab" data-category="comparison">⚖️ 工具对比</button>
+                <button class="category-tab" data-category="tips">💡 技巧心得</button>
+                <button class="category-tab" data-category="case_study">🔥 实战案例</button>
+            </div>
+
+            <!-- 内容头部 -->
+            <div class="content-header">
+                <h2 class="content-title" id="contentTitle">🔥 热门内容</h2>
+                <span class="content-count" id="contentCount">共 0 条</span>
+                <span id="keywordBadge" class="keyword-filter-badge hidden"></span>
+                <button id="refreshBtn" class="btn btn-sm btn-outline">🔄 刷新</button>
+            </div>
+
+            <!-- 加载状态 -->
+            <div id="loadingState" class="loading-state">
+                <div class="spinner"></div>
+                <p>正在加载内容...</p>
+            </div>
+
+            <!-- 空状态 -->
+            <div id="emptyState" class="empty-state hidden">
+                <div class="empty-icon">🔍</div>
+                <h3>没有找到符合条件的内容</h3>
+                <p id="emptyMessage">试试其他筛选条件，或者点击「开始爬取」获取新内容</p>
+                <button class="btn btn-primary" onclick="resetAllFilters()" style="margin-top:12px;">
+                    🔄 重置所有筛选
+                </button>
+            </div>
+
+            <!-- 内容网格 -->
+            <div id="contentGrid" class="content-grid hidden"></div>
+
+            <!-- 分页 -->
+            <div id="pagination" class="pagination hidden"></div>
+        </main>
+    </div>
+
+    <!-- 详情弹窗 -->
+    <div id="detailModal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <button class="modal-close" id="modalClose">✕</button>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- Toast 提示 -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
